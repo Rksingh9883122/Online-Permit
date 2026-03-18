@@ -1,0 +1,869 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px  
+import os
+import ast
+import smtplib
+import json
+import copy
+from datetime import datetime
+from email.message import EmailMessage
+from fpdf import FPDF
+from werkzeug.utils import secure_filename
+
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Digital Permit System", layout="wide")
+
+# --- CONFIGURATIONS & DIRECTORIES ---
+PERMIT_DB = 'database/permits.csv'
+HAZARDS_DB = 'database/hazards.json'
+CHECKPOINTS_DB = 'database/checkpoints.json' 
+PERSONNEL_DB = 'database/personnel.json'
+CONTRACTORS_DB = 'database/contractors.json'
+UPLOAD_FOLDER = 'static/uploads'
+PERMIT_FOLDER = 'static/permits'
+SIGNATURE_FOLDER = 'static/signatures'
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(PERMIT_FOLDER, exist_ok=True)
+os.makedirs(SIGNATURE_FOLDER, exist_ok=True)
+os.makedirs('database', exist_ok=True)
+
+# Initialize Permits Database
+if not os.path.exists(PERMIT_DB):
+    pd.DataFrame(columns=[
+        "permit_id", "contractor", "type", "location", "status", "requestor_name", "requestor_email",
+        "start_date", "start_time", "end_date", "end_time", 
+        "issuer", "hse_reviewer", "approver",               
+        "gas_test_img", "hazards_json", "checkpoints_json",
+        "issuer_comments", "hse_comments", "approver_comments",
+        "issuer_time", "hse_time", "approver_time",
+        "issuer_sign", "hse_sign", "approver_sign"
+    ]).to_csv(PERMIT_DB, index=False)
+else:
+    # Patch database if old columns are missing (including the new 'contractor' column)
+    df = pd.read_csv(PERMIT_DB)
+    new_cols = ["contractor", "issuer_comments", "hse_comments", "approver_comments", "issuer_time", "hse_time", "approver_time", "issuer_sign", "hse_sign", "approver_sign"]
+    for col in new_cols:
+        if col not in df.columns:
+            df[col] = ""
+    df.to_csv(PERMIT_DB, index=False)
+
+# --- MASTER DATABASES ---
+
+# 1. Personnel (Internal Workflow)
+DEFAULT_PERSONNEL = {
+    "Issuer": [{"name": "Alice Smith", "email": "alice.smith@example.com"}],
+    "HSE Reviewer": [{"name": "Bob Jones", "email": "bob.jones@example.com"}],
+    "Approver": [{"name": "Charlie Brown", "email": "charlie.b@example.com"}]
+}
+if not os.path.exists(PERSONNEL_DB):
+    with open(PERSONNEL_DB, 'w') as f:
+        json.dump(DEFAULT_PERSONNEL, f, indent=4)
+
+if 'personnel' not in st.session_state:
+    with open(PERSONNEL_DB, 'r') as f:
+        st.session_state.personnel = json.load(f)
+
+# 2. Contractors & Requestors
+DEFAULT_CONTRACTORS = {
+    "ABC Construction": [
+        {"name": "John Doe", "email": "john.doe@abc.com"},
+        {"name": "Jane Smith", "email": "jane.smith@abc.com"}
+    ],
+    "XYZ Engineering": [
+        {"name": "Mike Johnson", "email": "mike.j@xyz.com"}
+    ]
+}
+if not os.path.exists(CONTRACTORS_DB):
+    with open(CONTRACTORS_DB, 'w') as f:
+        json.dump(DEFAULT_CONTRACTORS, f, indent=4)
+
+if 'contractors' not in st.session_state:
+    with open(CONTRACTORS_DB, 'r') as f:
+        st.session_state.contractors = json.load(f)
+
+# 3. Hazards
+DEFAULT_HAZARDS = {
+    "Hot Work": [
+        {"hazard": "Fire / Explosion", "control": "Fire extinguishers available and inspected"},
+        {"hazard": "Burn Injuries", "control": "Use heat-resistant gloves and PPE"}
+    ],
+    "Confined Space": [
+        {"hazard": "Oxygen Deficiency", "control": "Continuous gas monitoring"},
+        {"hazard": "Toxic Gas Exposure", "control": "Pre-entry gas testing and ventilation"}
+    ]
+}
+if not os.path.exists(HAZARDS_DB):
+    with open(HAZARDS_DB, 'w') as f:
+        json.dump(DEFAULT_HAZARDS, f, indent=4)
+with open(HAZARDS_DB, 'r') as f:
+    HAZARDS_MAP = json.load(f)
+
+# 4. Checkpoints
+DEFAULT_CHECKPOINTS = {
+    "Confined Space": [
+        {"checkpoint_text": "Confined Space Entry Permit approved by authorized person"},
+        {"checkpoint_text": "Atmosphere tested: Oxygen 19.5%-23.5%, LEL <10%, Toxics within limits"}
+    ]
+}
+if not os.path.exists(CHECKPOINTS_DB):
+    with open(CHECKPOINTS_DB, 'w') as f:
+        json.dump(DEFAULT_CHECKPOINTS, f, indent=4)
+with open(CHECKPOINTS_DB, 'r') as f:
+    CHECKPOINTS_MAP = json.load(f)
+
+# --- PDF GENERATOR ---
+# --- PDF GENERATOR ---
+class PermitPDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 10, 'APPROVED WORK PERMIT', 1, 1, 'C')
+        self.ln(5)
+
+def clean_text(text):
+    """Removes non-Latin-1 characters that crash the FPDF library."""
+    if text is None or pd.isna(text):
+        return ""
+    return str(text).encode('latin-1', 'ignore').decode('latin-1')
+
+def generate_permit_pdf(permit_row):
+    pdf = PermitPDF()
+    pdf.add_page()
+    
+    # 1. Header Info
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, clean_text(f"Permit ID: {permit_row['permit_id']}"), 0, 1)
+    pdf.set_font('Arial', '', 11)
+    pdf.cell(0, 8, clean_text(f"Contractor: {permit_row.get('contractor', 'N/A')} | Location: {permit_row['location']}"), 0, 1)
+    pdf.cell(0, 8, clean_text(f"Start: {permit_row.get('start_date', '')} {permit_row.get('start_time', '')} | End: {permit_row.get('end_date', '')} {permit_row.get('end_time', '')}"), 0, 1)
+    pdf.cell(0, 8, clean_text(f"Requestor: {permit_row['requestor_name']} ({permit_row['requestor_email']})"), 0, 1)
+    pdf.ln(5)
+
+    # 2. Hazards Section
+    pdf.set_font('Arial', 'B', 12)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, "Hazards & Control Measures:", 0, 1)
+    
+    try:
+        data = ast.literal_eval(permit_row['hazards_json'])
+        for p_type, hazards in data.items():
+            pdf.set_fill_color(220, 220, 220)
+            pdf.set_font('Arial', 'B', 10)
+            pdf.cell(0, 8, clean_text(f" TYPE: {p_type.upper()} "), 1, 1, 'L', True)
+            pdf.set_font('Arial', '', 10)
+            
+            for hIdx, h in enumerate(hazards):
+                pdf.set_text_color(255, 0, 0) 
+                text = f"#{hIdx+1}. Hazard: {h['hazard']} | PIC: {h['resp_name']} ({h['resp_cell']})"
+                pdf.cell(0, 8, clean_text(text), 0, 1)
+                
+                pdf.set_text_color(0, 0, 139) 
+                pdf.set_fill_color(240, 240, 240)
+                pdf.multi_cell(0, 8, clean_text(f"    Control Measure: {h['control']}"), 1, 'L', True)
+                
+                pdf.set_text_color(0, 0, 0) 
+                pdf.ln(2)
+            pdf.ln(2)
+    except Exception as e:
+        pdf.set_text_color(0, 0, 0)
+        pdf.cell(0, 10, clean_text(f"Error loading hazards: {e}"), 1, 1)
+
+    # 3. Checkpoint Section
+    pdf.ln(5)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, "Checkpoint Compliance:", 0, 1)
+    
+    try:
+        checkpoints_data = ast.literal_eval(permit_row['checkpoints_json'])
+        headers = ['S.No', 'Critical Checkpoint Statement', 'Response']
+        widths = [10, 140, 40]
+        pdf.set_font('Arial', 'B', 9)
+        pdf.set_fill_color(200, 200, 200)
+        for i in range(len(headers)):
+            pdf.cell(widths[i], 10, headers[i], 1, 0, 'C', True)
+        pdf.ln()
+        
+        pdf.set_font('Arial', '', 9)
+        
+        for p_type, section_checkpoints in checkpoints_data.items():
+            pdf.set_font('Arial', 'B', 9)
+            pdf.set_fill_color(245, 245, 245)
+            pdf.cell(0, 8, clean_text(f"--- {p_type.upper()} ---"), 1, 1, 'L', True)
+            pdf.set_font('Arial', '', 9)
+            
+            for hIdx, item in enumerate(section_checkpoints):
+                pdf.cell(widths[0], 10, str(hIdx+1), 1, 0, 'C')
+                start_x = pdf.get_x()
+                start_y = pdf.get_y()
+                pdf.multi_cell(widths[1], 10, clean_text(item['checkpoint_text']), 1, 'L')
+                end_x = pdf.get_x()
+                end_y = pdf.get_y()
+                pdf.set_xy(start_x + widths[1], start_y)
+                pdf.cell(widths[2], (end_y - start_y), clean_text(item['answer']), 1, 0, 'C')
+                pdf.ln()
+            pdf.ln(2)
+    except Exception as e:
+        pdf.cell(0, 10, clean_text(f"Error loading checkpoints: {e}"), 1, 1)
+
+    # 4. Approvals & Signatures Section
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, "APPROVALS & SIGNATURES", 0, 1)
+    pdf.ln(5)
+
+    def add_signature_block(role, name, comments, time_signed, sign_path):
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 8, clean_text(f"{role}: {name}"), 0, 1)
+        pdf.set_font('Arial', '', 10)
+        pdf.cell(0, 6, clean_text(f"Time Signed: {time_signed if pd.notna(time_signed) and time_signed else 'Pending'}"), 0, 1)
+        pdf.multi_cell(0, 6, clean_text(f"Comments: {comments if pd.notna(comments) and comments else 'None'}"))
+        
+        if pd.notna(sign_path) and sign_path and os.path.exists(str(sign_path)):
+            try:
+                pdf.image(str(sign_path), x=15, y=pdf.get_y() + 2, h=15)
+                pdf.ln(20) 
+            except Exception as e:
+                pdf.cell(0, 6, clean_text(f"(Could not load signature image: {e})"), 0, 1)
+        else:
+            pdf.ln(5)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(5)
+
+    add_signature_block("Issuer", permit_row.get('issuer', 'N/A'), permit_row.get('issuer_comments', ''), permit_row.get('issuer_time', ''), permit_row.get('issuer_sign', ''))
+    add_signature_block("HSE Reviewer", permit_row.get('hse_reviewer', 'N/A'), permit_row.get('hse_comments', ''), permit_row.get('hse_time', ''), permit_row.get('hse_sign', ''))
+    add_signature_block("Final Approver", permit_row.get('approver', 'N/A'), permit_row.get('approver_comments', ''), permit_row.get('approver_time', ''), permit_row.get('approver_sign', ''))
+
+    # 5. Attachments Embedding Section
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, "ATTACHED SUPPORTING DOCUMENTS", 0, 1)
+    pdf.ln(5)
+    
+    has_attachments = False
+    try:
+        checkpoints_data = ast.literal_eval(permit_row['checkpoints_json'])
+        for p_type, section_checkpoints in checkpoints_data.items():
+            for item in section_checkpoints:
+                if 'attached_docs' in item and item['attached_docs']:
+                    for doc in item['attached_docs']:
+                        has_attachments = True
+                        doc_path = doc['path']
+                        doc_name = doc['name']
+                        ext = os.path.splitext(doc_path)[1].lower()
+                        
+                        pdf.set_font('Arial', 'B', 10)
+                        pdf.cell(0, 8, clean_text(f"Checkpoint Reference: {item['checkpoint_text'][:75]}..."), 0, 1)
+                        pdf.set_font('Arial', '', 10)
+                        pdf.cell(0, 8, clean_text(f"File Name: {doc_name}"), 0, 1)
+                        
+                        # Embed if image
+                        if ext in ['.jpg', '.jpeg', '.png'] and os.path.exists(doc_path):
+                            # Ensure we have enough space on the page, else add new page
+                            if pdf.get_y() > 180:
+                                pdf.add_page()
+                            try:
+                                # Scales the image to fit nicely within standard A4 margins (170mm width)
+                                pdf.image(doc_path, x=15, w=150)
+                                pdf.ln(5)
+                            except Exception as e:
+                                pdf.cell(0, 8, clean_text(f"(Error rendering image: {e})"), 0, 1)
+                        else:
+                            # Note for PDFs/Word Docs that can't be rendered physically inside this PDF
+                            pdf.set_text_color(100, 100, 100)
+                            pdf.cell(0, 8, "(This document type cannot be embedded physically. Please view external file)", 0, 1)
+                            pdf.set_text_color(0, 0, 0)
+                            pdf.ln(5)
+                        
+                        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+                        pdf.ln(5)
+    except Exception as e:
+         pdf.cell(0, 10, clean_text(f"Error checking attachments: {e}"), 0, 1)
+         
+    if not has_attachments:
+        pdf.set_font('Arial', '', 11)
+        pdf.cell(0, 10, "No attachments were provided for this permit.", 0, 1)
+
+    # 6. Revalidation Log Section
+    pdf.add_page()
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, "APPROVED WORK PERMIT & REVALIDATION", 1, 1, 'C')
+    pdf.ln(5)
+    
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 10, "DAILY REVALIDATION LOG (OFFLINE)", 0, 1, 'C')
+    pdf.ln(5)
+    
+    # Table Config
+    col_widths = [30, 30, 43, 43, 44] # Must equal 190 (A4 width - margins)
+    headers = ["Date", "Shift", "Issuer Sign", "HSE Sign", "Approver Sign"]
+    
+    pdf.set_font('Arial', 'B', 11)
+    for i in range(len(headers)):
+        pdf.cell(col_widths[i], 10, headers[i], 1, 0, 'C')
+    pdf.ln()
+    
+    pdf.set_font('Arial', '', 11)
+    for _ in range(7):
+        for i in range(len(headers)):
+            pdf.cell(col_widths[i], 15, "", 1, 0, 'C') # 15mm height for signing space
+        pdf.ln()
+
+    # Save and Output
+    file_path = os.path.join(PERMIT_FOLDER, f"Permit_{permit_row['permit_id']}.pdf")
+    pdf.output(file_path)
+    return file_path
+# --- EMAIL HELPER ---
+def extract_email(person_string):
+    if "(" in person_string and ")" in person_string:
+        return person_string.split("(")[-1].split(")")[0].strip()
+    return None
+
+def send_workflow_email(recipient_email, subject, body, pdf_path=None):
+    if not recipient_email:
+        return
+        
+    EMAIL_ADDRESS = "rksingh9883122@gmail.com"
+    EMAIL_PASSWORD = "cbkw xsus zyht ryso"
+
+    msg = EmailMessage()
+    msg['Subject'] = subject
+    msg['From'] = EMAIL_ADDRESS
+    msg['To'] = recipient_email
+    msg.set_content(body)
+
+    if pdf_path and os.path.exists(pdf_path):
+        with open(pdf_path, 'rb') as f:
+            msg.add_attachment(f.read(), maintype='application', subtype='pdf', filename=os.path.basename(pdf_path))
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+    except Exception as e:
+        print(f"Failed to send email to {recipient_email}: {e}")
+
+# ==========================================
+#             APP NAVIGATION
+# ==========================================
+st.sidebar.title("Navigation")
+page = st.sidebar.radio("Go to:", ["Request Permit", "Approver Dashboard", "Manage Personnel", "Live Dashboard"])
+
+# ==========================================
+#             PAGE 1: REQUEST FORM
+# ==========================================
+if page == "Request Permit":
+    st.title("Digital Work Permit Request")
+    
+    if 'permit_count' not in st.session_state:
+        st.session_state.permit_count = 1
+
+    st.subheader("1. General Information")
+
+    # Contractor Selection
+    contractor_list = ["Select Contractor..."] + list(st.session_state.contractors.keys())
+    selected_contractor = st.selectbox("Contractor", contractor_list)
+
+    col1, col2 = st.columns(2)
+    with col1:
+        # Dynamic Requestor Name based on Contractor
+        if selected_contractor != "Select Contractor...":
+            requestors = st.session_state.contractors.get(selected_contractor, [])
+            req_names = ["Select Requestor..."] + [r['name'] for r in requestors]
+            req_name = st.selectbox("Requestor Name", req_names)
+        else:
+            req_name = st.selectbox("Requestor Name", ["Select Contractor First..."])
+            
+        location = st.selectbox("Location", ["Plant A", "Zone 5", "Offshore Platform"])
+        
+    with col2:
+        # Auto-fill Requestor Email based on Name
+        req_email = ""
+        if selected_contractor != "Select Contractor..." and req_name not in ["Select Requestor...", "Select Contractor First..."]:
+            for r in st.session_state.contractors[selected_contractor]:
+                if r['name'] == req_name:
+                    req_email = r['email']
+                    break
+        
+        st.text_input("Requestor Email", value=req_email, disabled=True)
+
+    st.divider()
+
+    col3, col4 = st.columns(2)
+    with col3:
+        start_date = st.date_input("Start Date")
+        start_time = st.time_input("Start Time")
+    with col4:
+        end_date = st.date_input("End Date")
+        end_time = st.time_input("End Time")
+
+    st.divider()
+
+    st.subheader("2. Personnel & Approvals")
+    
+    def format_person_list(role):
+        return ["Select a person..."] + [f"{p['name']} ({p['email']})" for p in st.session_state.personnel.get(role, [])]
+
+    col5, col6, col7 = st.columns(3)
+    with col5:
+        issuer = st.selectbox("Issuer", format_person_list("Issuer"))
+    with col6:
+        hse_reviewer = st.selectbox("HSE Reviewer", format_person_list("HSE Reviewer"))
+    with col7:
+        approver = st.selectbox("Approver", format_person_list("Approver"))
+
+    st.divider()
+
+    # --- HAZARDS & PERMITS ---
+    st.subheader("3. Permit Types & Hazards")
+    all_permits_data = {}
+    
+    for i in range(st.session_state.permit_count):
+        st.markdown(f"**Permit Section {i+1}**")
+        
+        type_key = f"type_{i}"
+        hazards_state_key = f"dynamic_hazards_{i}"
+        prev_type_key = f"prev_type_{i}"
+        
+        p_type = st.selectbox(f"Select Permit Type", [""] + list(HAZARDS_MAP.keys()), key=type_key)
+        
+        if p_type != st.session_state.get(prev_type_key, ""):
+            st.session_state[prev_type_key] = p_type
+            if p_type:
+                st.session_state[hazards_state_key] = copy.deepcopy(HAZARDS_MAP[p_type])
+            else:
+                st.session_state[hazards_state_key] = []
+        
+        if p_type:
+            permit_hazards = []
+            st.caption(f"Hazards and Controls for {p_type} (Edit values or add new ones below)")
+            
+            for hIdx, item in enumerate(st.session_state[hazards_state_key]):
+                st.markdown(f"**Hazard {hIdx+1}**")
+                
+                c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+                haz_val = c1.text_input("🔴 Hazard (Red)", value=item.get('hazard', ''), key=f"edit_haz_{i}_{hIdx}")
+                ctrl_val = c2.text_input("🔵 Control Measure (Blue)", value=item.get('control', ''), key=f"edit_ctrl_{i}_{hIdx}")
+                resp_name = c3.text_input("PIC Name", value=item.get('resp_name', ''), key=f"pic_name_{i}_{hIdx}")
+                resp_cell = c4.text_input("PIC Cell", value=item.get('resp_cell', ''), key=f"pic_cell_{i}_{hIdx}")
+                
+                permit_hazards.append({
+                    "hazard": haz_val, "control": ctrl_val, "resp_name": resp_name, "resp_cell": resp_cell
+                })
+                
+            all_permits_data[p_type] = permit_hazards
+            
+            if st.button("Add Custom Hazard Row", key=f"add_row_{i}"):
+                st.session_state[hazards_state_key].append({"hazard": "", "control": "", "resp_name": "", "resp_cell": ""})
+                st.rerun()
+
+            st.markdown("---") 
+            st.subheader("Checkpoints & Documentation")
+            
+            if p_type in CHECKPOINTS_MAP:
+                checkpoints_for_this_type = copy.deepcopy(CHECKPOINTS_MAP[p_type])
+                for hIdx, item in enumerate(checkpoints_for_this_type):
+                    st.write(f"**#{hIdx+1}:** {item['checkpoint_text']}")
+                    
+                    c1, c2 = st.columns([1, 2])
+                    with c1:
+                        st.selectbox("Response", ["Yes", "No", "N/A"], key=f"ans_{i}_{hIdx}")
+                    with c2:
+                        st.file_uploader("Attach Supporting Documents", accept_multiple_files=True, key=f"docs_{i}_{hIdx}", type=["pdf", "jpg", "jpeg", "png", "docx"])
+
+        st.divider()
+
+    if st.button("Add Another Permit Section"):
+        st.session_state.permit_count += 1
+        st.rerun()
+
+    # --- SUBMIT ---
+    st.divider()
+    if st.button("Submit Permit for Approval", type="primary", use_container_width=True):
+        if selected_contractor == "Select Contractor..." or req_name in ["Select Requestor...", "Select Contractor First..."] or not req_email or not all_permits_data or issuer == "Select a person...":
+            st.error("Please fill in Contractor, Requestor Name, select a Permit Type, and ensure an Issuer is selected.")
+        else:
+            permit_id = datetime.now().strftime("%Y%m%d%H%M%S")
+            
+            PERMIT_SUBMISSION_FOLDER = os.path.join(UPLOAD_FOLDER, f"permit_{permit_id}")
+            os.makedirs(PERMIT_SUBMISSION_FOLDER, exist_ok=True)
+
+            all_permits_checkpoint_data = {}
+            for i in range(st.session_state.permit_count):
+                p_type = st.session_state.get(f"type_{i}")
+                if p_type and p_type in CHECKPOINTS_MAP:
+                    section_checkpoint_responses = []
+                    for hIdx, item in enumerate(CHECKPOINTS_MAP[p_type]):
+                        answer = st.session_state.get(f"ans_{i}_{hIdx}")
+                        file_objects = st.session_state.get(f"docs_{i}_{hIdx}")
+                        
+                        this_checkpoint_documents = []
+                        if file_objects:
+                            for file_obj in file_objects:
+                                secure_name = secure_filename(file_obj.name)
+                                dest_file_path = os.path.join(PERMIT_SUBMISSION_FOLDER, secure_name)
+                                with open(dest_file_path, "wb") as f:
+                                    f.write(file_obj.getbuffer())
+                                this_checkpoint_documents.append({'name': file_obj.name, 'path': dest_file_path})
+                                
+                        checkpoint_response_data = {'checkpoint_text': item['checkpoint_text'], 'answer': answer, 'attached_docs': this_checkpoint_documents}
+                        section_checkpoint_responses.append(checkpoint_response_data)
+                    all_permits_checkpoint_data[p_type] = section_checkpoint_responses
+            
+            new_data = {
+                "permit_id": permit_id,
+                "contractor": selected_contractor,
+                "type": ", ".join(all_permits_data.keys()),
+                "location": location,
+                "status": "PENDING_ISSUER",
+                "requestor_name": req_name,
+                "requestor_email": req_email,
+                "start_date": str(start_date),
+                "start_time": str(start_time),
+                "end_date": str(end_date),
+                "end_time": str(end_time),
+                "issuer": issuer,
+                "hse_reviewer": hse_reviewer,
+                "approver": approver,
+                "gas_test_img": "",
+                "hazards_json": str(all_permits_data), 
+                "checkpoints_json": str(all_permits_checkpoint_data), 
+                "issuer_comments": "",
+                "hse_comments": "",
+                "approver_comments": "",
+                "issuer_time": "",
+                "hse_time": "",
+                "approver_time": "",
+                "issuer_sign": "",
+                "hse_sign": "",
+                "approver_sign": ""
+            }
+            
+            df = pd.read_csv(PERMIT_DB)
+            df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+            df.to_csv(PERMIT_DB, index=False)
+            
+            issuer_email = extract_email(issuer)
+            if issuer_email:
+                subject = f"Action Required: New Work Permit #{permit_id}"
+                body = f"Hello,\n\nA new permit #{permit_id} has been requested by {req_name} ({selected_contractor}) for {location}.\nPlease log in to the system to review and approve as the Issuer."
+                send_workflow_email(issuer_email, subject, body)
+
+            st.success("Permit Submitted Successfully! Notification sent to the Issuer.")
+
+# ==========================================
+#         PAGE 2: APPROVER DASHBOARD
+# ==========================================
+elif page == "Approver Dashboard":
+    st.title("Permit Approval Dashboard")
+    
+    df = pd.read_csv(PERMIT_DB)
+    pending_df = df[df['status'] != 'APPROVED']
+    
+    if pending_df.empty:
+        st.info("All caught up! No pending permits.")
+    else:
+        for index, row in pending_df.iterrows():
+            with st.expander(f"Permit #{row['permit_id']} | {row['type']} | Status: {row['status']}"):
+                st.write(f"**Contractor:** {row.get('contractor', 'N/A')}")
+                st.write(f"**Requestor:** {row['requestor_name']} ({row['requestor_email']})")
+                st.write(f"**Location:** {row['location']}")
+                st.write(f"**Schedule:** {row.get('start_date', '')} {row.get('start_time', '')}  TO  {row.get('end_date', '')} {row.get('end_time', '')}")
+                st.caption(f"**Assigned To:** Issuer: {row.get('issuer', 'N/A')} | HSE: {row.get('hse_reviewer', 'N/A')} | Approver: {row.get('approver', 'N/A')}")
+                
+                if row['status'] == "PENDING_ISSUER":
+                    st.markdown("### Issuer Approval")
+                    comment = st.text_area("Issuer Comments", key=f"iss_{row['permit_id']}")
+                    sign_file = st.file_uploader("Upload Signature (Image)", type=['png', 'jpg', 'jpeg'], key=f"sign_iss_{row['permit_id']}")
+                    
+                    if st.button("Approve (Issuer)", key=f"btn_iss_{row['permit_id']}", type="primary"):
+                        if sign_file:
+                            sign_path = os.path.join(SIGNATURE_FOLDER, f"iss_{row['permit_id']}_{secure_filename(sign_file.name)}")
+                            with open(sign_path, "wb") as f:
+                                f.write(sign_file.getbuffer())
+                            df.at[index, 'issuer_sign'] = sign_path
+                            
+                        df.at[index, 'issuer_comments'] = comment
+                        df.at[index, 'issuer_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        df.at[index, 'status'] = "PENDING_HSE"
+                        df.to_csv(PERMIT_DB, index=False)
+                        
+                        hse_email = extract_email(row['hse_reviewer'])
+                        if hse_email:
+                            send_workflow_email(hse_email, f"Action Required: HSE Review for Permit #{row['permit_id']}", f"Hello,\n\nPermit #{row['permit_id']} has been approved by the Issuer and is now pending your HSE review.")
+                        st.rerun()
+
+                elif row['status'] == "PENDING_HSE":
+                    st.markdown("### HSE Review")
+                    st.info(f"Issuer: {row['issuer']} | Signed at: {row.get('issuer_time', 'N/A')}\n\nIssuer Comments: {row['issuer_comments']}")
+                    
+                    comment = st.text_area("HSE Comments", key=f"hse_{row['permit_id']}")
+                    sign_file = st.file_uploader("Upload Signature (Image)", type=['png', 'jpg', 'jpeg'], key=f"sign_hse_{row['permit_id']}")
+
+                    if st.button("Approve (HSE)", key=f"btn_hse_{row['permit_id']}", type="primary"):
+                        if sign_file:
+                            sign_path = os.path.join(SIGNATURE_FOLDER, f"hse_{row['permit_id']}_{secure_filename(sign_file.name)}")
+                            with open(sign_path, "wb") as f:
+                                f.write(sign_file.getbuffer())
+                            df.at[index, 'hse_sign'] = sign_path
+
+                        df.at[index, 'hse_comments'] = comment
+                        df.at[index, 'hse_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        df.at[index, 'status'] = "PENDING_APPROVER"
+                        df.to_csv(PERMIT_DB, index=False)
+                        
+                        approver_email = extract_email(row['approver'])
+                        if approver_email:
+                            send_workflow_email(approver_email, f"Action Required: Final Approval for Permit #{row['permit_id']}", f"Hello,\n\nPermit #{row['permit_id']} has passed HSE review and is awaiting your final approval.")
+                        st.rerun()
+
+                elif row['status'] == "PENDING_APPROVER":
+                    st.markdown("### Final Approval")
+                    st.info(f"Issuer: {row['issuer']} | Signed at: {row.get('issuer_time', 'N/A')}\n\nIssuer Comments: {row['issuer_comments']}")
+                    st.info(f"HSE Reviewer: {row['hse_reviewer']} | Signed at: {row.get('hse_time', 'N/A')}\n\nHSE Comments: {row['hse_comments']}")
+                    
+                    st.warning("You are providing final approval. This will generate the PDF and email the requestor.")
+                    
+                    comment = st.text_area("Approver Comments", key=f"app_{row['permit_id']}")
+                    sign_file = st.file_uploader("Upload Signature (Image)", type=['png', 'jpg', 'jpeg'], key=f"sign_app_{row['permit_id']}")
+
+                    if st.button("Final Approve & Send", key=f"btn_app_{row['permit_id']}", type="primary"):
+                        if sign_file:
+                            sign_path = os.path.join(SIGNATURE_FOLDER, f"app_{row['permit_id']}_{secure_filename(sign_file.name)}")
+                            with open(sign_path, "wb") as f:
+                                f.write(sign_file.getbuffer())
+                            df.at[index, 'approver_sign'] = sign_path
+
+                        df.at[index, 'approver_comments'] = comment
+                        df.at[index, 'approver_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        df.at[index, 'status'] = "APPROVED"
+                        df.to_csv(PERMIT_DB, index=False)
+                        
+                        updated_row = df.loc[index]
+                        with st.spinner("Generating PDF and sending email..."):
+                            pdf_path = generate_permit_pdf(updated_row)
+                            try:
+                                send_workflow_email(
+                                    updated_row['requestor_email'], 
+                                    f"Approved Work Permit: #{updated_row['permit_id']}", 
+                                    f"Hello {updated_row['requestor_name']},\n\nYour Work Permit #{updated_row['permit_id']} has been fully approved.\nPlease find the permit document attached.",
+                                    pdf_path
+                                )
+                                st.success("Approved, PDF Generated, and Email Sent to Requestor!")
+                            except Exception as e:
+                                st.error(f"Approved, but email failed: {e}")
+                        
+                        st.rerun()
+
+# ==========================================
+#         PAGE 3: MANAGE PERSONNEL
+# ==========================================
+elif page == "Manage Personnel":
+    st.title("Manage Workflow Personnel & Contractors")
+    
+    # --- INTERNAL WORKFLOW PERSONNEL ---
+    st.header("1. Internal Workflow Approvers")
+    st.write("Add or remove personnel available for the Issuer, HSE, and Approver roles.")
+
+    roles = ["Issuer", "HSE Reviewer", "Approver"]
+    
+    for role in roles:
+        st.subheader(f"{role}s")
+        if not st.session_state.personnel.get(role):
+            st.info(f"No {role}s configured yet.")
+        else:
+            for idx, person in enumerate(st.session_state.personnel[role]):
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(f"**{person['name']}** —  *{person['email']}*")
+                with col2:
+                    if st.button("Remove", key=f"del_{role}_{idx}"):
+                        st.session_state.personnel[role].pop(idx)
+                        with open(PERSONNEL_DB, 'w') as f:
+                            json.dump(st.session_state.personnel, f, indent=4)
+                        st.rerun()
+        
+        with st.expander(f"Add a new {role}"):
+            with st.form(key=f"form_add_{role}"):
+                new_name = st.text_input("Full Name")
+                new_email = st.text_input("Email Address")
+                if st.form_submit_button(f"Add {role}"):
+                    if new_name and new_email:
+                        if role not in st.session_state.personnel:
+                            st.session_state.personnel[role] = []
+                        st.session_state.personnel[role].append({"name": new_name, "email": new_email})
+                        with open(PERSONNEL_DB, 'w') as f:
+                            json.dump(st.session_state.personnel, f, indent=4)
+                        st.success(f"{new_name} added to {role}s!")
+                        st.rerun()
+                    else:
+                        st.error("Both Name and Email are required.")
+        st.divider()
+
+    # --- EXTERNAL CONTRACTORS & REQUESTORS ---
+    st.header("2. Contractors & Requestors")
+    st.write("Manage external contracting companies and their specific requestors.")
+    
+    # Add new contractor company
+    with st.expander("Add New Contractor Company"):
+        with st.form(key="form_add_contractor"):
+            new_contractor = st.text_input("Contractor Company Name")
+            if st.form_submit_button("Add Company"):
+                if new_contractor:
+                    if new_contractor not in st.session_state.contractors:
+                        st.session_state.contractors[new_contractor] = []
+                        with open(CONTRACTORS_DB, 'w') as f:
+                            json.dump(st.session_state.contractors, f, indent=4)
+                        st.success(f"Added {new_contractor}!")
+                        st.rerun()
+                    else:
+                        st.warning("Contractor already exists.")
+                else:
+                    st.error("Company name is required.")
+
+    # Manage existing contractors and their requestors
+    for contractor, requestors in st.session_state.contractors.items():
+        st.subheader(f"🏢 {contractor}")
+        
+        if not requestors:
+            st.info("No requestors added for this contractor yet.")
+        else:
+            for idx, req in enumerate(requestors):
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(f"👤 **{req['name']}** — *{req['email']}*")
+                with col2:
+                    if st.button("Remove", key=f"del_req_{contractor}_{idx}"):
+                        st.session_state.contractors[contractor].pop(idx)
+                        with open(CONTRACTORS_DB, 'w') as f:
+                            json.dump(st.session_state.contractors, f, indent=4)
+                        st.rerun()
+                        
+        with st.expander(f"Add Requestor to {contractor}"):
+            with st.form(key=f"form_add_req_{contractor}"):
+                req_name = st.text_input("Requestor Name")
+                req_email = st.text_input("Requestor Email")
+                if st.form_submit_button("Add Requestor"):
+                    if req_name and req_email:
+                        st.session_state.contractors[contractor].append({"name": req_name, "email": req_email})
+                        with open(CONTRACTORS_DB, 'w') as f:
+                            json.dump(st.session_state.contractors, f, indent=4)
+                        st.success(f"Added {req_name} to {contractor}!")
+                        st.rerun()
+                    else:
+                        st.error("Both Name and Email are required.")
+        st.divider()
+
+# ==========================================
+#         PAGE 4: LIVE DASHBOARD
+# ==========================================
+elif page == "Live Dashboard":
+    st.title("Live HSE Permit Dashboard")
+    st.markdown("Real-time monitoring of Work Permits.")
+
+    @st.cache_data(ttl=10)
+    def load_dashboard_data():
+        try:
+            df = pd.read_csv(PERMIT_DB)
+            if not df.empty:
+                df['start_date'] = pd.to_datetime(df['start_date'], errors='coerce')
+            return df
+        except Exception as e:
+            st.error(f"Error loading dashboard data: {e}")
+            return pd.DataFrame()
+
+    df_dash = load_dashboard_data()
+
+    if st.button("Refresh Data Now"):
+        st.cache_data.clear()
+        st.rerun()
+
+    if df_dash.empty:
+        st.warning("No permit data found yet. Create some permits first!")
+    else:
+        st.markdown("### Permit Overview")
+        col1, col2, col3, col4 = st.columns(4)
+
+        total_permits = len(df_dash)
+        approved_permits = len(df_dash[df_dash['status'] == 'APPROVED'])
+        hot_work_count = sum(df_dash['type'].astype(str).str.contains('Hot Work'))
+        confined_space_count = sum(df_dash['type'].astype(str).str.contains('Confined Space'))
+
+        col1.metric("Total Permits", total_permits)
+        col2.metric("Approved", approved_permits)
+        col3.metric("Hot Work", hot_work_count)
+        col4.metric("Confined Space", confined_space_count)
+        st.divider()
+
+        st.markdown("### Live Permit Feed")
+        st.sidebar.header("Filter Dashboard")
+        selected_type = st.sidebar.multiselect("Permit Type", df_dash['type'].unique(), default=df_dash['type'].unique())
+        selected_status = st.sidebar.multiselect("Status", df_dash['status'].unique(), default=df_dash['status'].unique())
+
+        filtered_df = df_dash[(df_dash['type'].isin(selected_type)) & (df_dash['status'].isin(selected_status))]
+
+        st.dataframe(
+            filtered_df[['permit_id', 'contractor', 'type', 'location', 'status', 'requestor_name', 'start_date']], 
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.markdown("### Permit Deep Dive")
+        selected_permit = st.selectbox("Select a Permit ID to view detailed hazards, checkpoints, and approvals:", filtered_df['permit_id'])
+
+        if selected_permit:
+            permit_data = filtered_df[filtered_df['permit_id'] == selected_permit].iloc[0]
+            
+            st.markdown("#### Approval Chain")
+            ac1, ac2, ac3 = st.columns(3)
+            with ac1:
+                st.write(f"**Issuer:** {permit_data.get('issuer', 'N/A')}")
+                st.caption(f"Time: {permit_data.get('issuer_time', 'Pending')}")
+                st.caption(f"Comments: {permit_data.get('issuer_comments', 'None')}")
+            with ac2:
+                st.write(f"**HSE Reviewer:** {permit_data.get('hse_reviewer', 'N/A')}")
+                st.caption(f"Time: {permit_data.get('hse_time', 'Pending')}")
+                st.caption(f"Comments: {permit_data.get('hse_comments', 'None')}")
+            with ac3:
+                st.write(f"**Approver:** {permit_data.get('approver', 'N/A')}")
+                st.caption(f"Time: {permit_data.get('approver_time', 'Pending')}")
+                st.caption(f"Comments: {permit_data.get('approver_comments', 'None')}")
+
+            st.divider()
+            
+            col_info1, col_info2 = st.columns(2)
+            
+            with col_info1:
+                st.markdown("#### Hazards & Controls")
+                try:
+                    hazards = ast.literal_eval(permit_data['hazards_json'])
+                    for p_type, hazard_list in hazards.items():
+                        st.markdown(f"**Permit Type: {p_type}**")
+                        for i, h in enumerate(hazard_list):
+                            st.markdown(f"**Hazard {i+1}:** :red[{h.get('hazard', 'N/A')}]")
+                            st.markdown(f"**Control:** :blue[{h.get('control', 'N/A')}]")
+                            st.write("---")
+                except Exception as e:
+                    st.write("No valid hazard data available.")
+                    
+            with col_info2:
+                st.markdown("#### Checkpoints Validated")
+                try:
+                    checkpoints = ast.literal_eval(permit_data['checkpoints_json'])
+                    for p_type, cp_list in checkpoints.items():
+                        st.markdown(f"**Permit Type: {p_type}**")
+                        for i, cp in enumerate(cp_list):
+                            answer = cp.get('answer', 'N/A')
+                            color = "green" if answer == "Yes" else "red" if answer == "No" else "gray"
+                            
+                            st.markdown(f"**{i+1}.** {cp.get('checkpoint_text', 'N/A')}")
+                            st.markdown(f"**Response:** :{color}[**{answer}**]")
+                            st.write("---")
+                except Exception as e:
+                    st.write("No valid checkpoint data available.")
+                    
+                    
+                    
+                    
+                    

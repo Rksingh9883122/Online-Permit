@@ -1,0 +1,36 @@
+{
+    "Issuer": [
+        {
+            "name": "Raj Singh",
+            "email": "raj.singh.hse@gmail.com"
+        },
+        {
+            "name": "Raj",
+            "email": "9883122847"
+        }
+    ],
+    "HSE Reviewer": [
+        {
+            "name": "Raj",
+            "email": "raj.singh.hse@gmail.com"
+        },
+        {
+            "name": "Akash",
+            "email": "Akash.shukla@ten.com"
+        }
+    ],
+    "Approver": [
+        {
+            "name": "Charlie Brown",
+            "email": "charlie.b@example.com"
+        },
+        {
+            "name": "raj3",
+            "email": "raj.singh.hse@gmail.com"
+        },
+        {
+            "name": "raj singh2",
+            "email": "raj.singh2@ten.com"
+        }
+    ]
+}

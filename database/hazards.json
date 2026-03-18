@@ -1,0 +1,131 @@
+{
+    "Hot Work": [
+        {
+            "hazard": "Fire / Explosion due to flammable materials",
+            "control": "Remove combustibles, maintain fire watch, and keep inspected fire extinguishers nearby"
+        },
+        {
+            "hazard": "Burn injuries from sparks, slag, or hot surfaces",
+            "control": "Wear flame-resistant clothing, gloves, face shield, and proper PPE"
+        },
+        {
+            "hazard": "Toxic fumes and gases inhalation",
+            "control": "Ensure adequate ventilation or local exhaust and use respiratory protection if required"
+        }
+       
+    ],
+
+    "Confined Space": [
+        {
+            "hazard": "Oxygen deficiency or enrichment",
+            "control": "Continuous gas monitoring and maintain oxygen within safe limits (19.5%–23.5%)"
+        },
+        {
+            "hazard": "Exposure to toxic gases (H2S, CO, etc.)",
+            "control": "Pre-entry gas testing, forced ventilation, and use of gas detectors"
+        },
+        {
+            "hazard": "Engulfment or entrapment",
+            "control": "Isolate all material sources and apply lockout/tagout procedures"
+        }
+        
+    ],
+
+    "Working at Height": [
+        {
+            "hazard": "Fall from height due to unprotected edges",
+            "control": "Use full body harness with 100% tie-off and install guardrails"
+        },
+        {
+            "hazard": "Falling objects striking personnel below",
+            "control": "Install toe boards, use tool lanyards, and barricade area below"
+        },
+        {
+            "hazard": "Unstable or slippery working surfaces",
+            "control": "Inspect platforms and ensure anti-slip surfaces"
+        }
+
+    ],
+
+    "Scaffolding Work": [
+        {
+            "hazard": "Collapse due to improper erection",
+            "control": "Erect scaffold by certified scaffolders and follow approved design"
+        },
+        {
+            "hazard": "Fall from scaffold platform",
+            "control": "Install guardrails, midrails, and ensure fall protection systems"
+        },
+        {
+            "hazard": "Falling tools/materials from scaffold",
+            "control": "Use toe boards, debris nets, and secure materials"
+        }
+
+    ],
+
+    "Critical Lifting": [
+        {
+            "hazard": "Load drop due to rigging failure",
+            "control": "Use certified lifting gear and inspect before use"
+        },
+        {
+            "hazard": "Crane overturning or instability",
+            "control": "Ensure stable ground, use outriggers, and level crane properly"
+        },
+        {
+            "hazard": "Overloading crane capacity",
+            "control": "Verify load weight and follow crane load chart strictly"
+        }
+
+    ],
+
+    "Electrical Work": [
+        {
+            "hazard": "Electric shock from live circuits",
+            "control": "Isolate power supply and use insulated tools and PPE"
+        },
+        {
+            "hazard": "Arc flash and arc blast",
+            "control": "Wear arc-rated PPE and maintain safe working distance"
+        },
+        {
+            "hazard": "Short circuit and fire",
+            "control": "Ensure proper grounding, circuit protection, and cable management"
+        }
+    ],
+
+    "Radiography Work": [
+        {
+            "hazard": "Radiation exposure to personnel",
+            "control": "Use shielding, maintain safe distance, and minimize exposure time"
+        },
+        {
+            "hazard": "Unauthorized entry into radiation zone",
+            "control": "Barricade area and display warning signage with flashing lights"
+        },
+        {
+            "hazard": "Improper handling of radioactive source",
+            "control": "Allow only certified radiographers to handle equipment"
+        }
+
+    ],
+
+    "Excavation Work": [
+        {
+            "hazard": "Cave-in or trench collapse",
+            "control": "Provide shoring, sloping, or trench boxes and inspect daily"
+        },
+        {
+            "hazard": "Contact with underground utilities",
+            "control": "Identify, locate, and mark all underground services before excavation"
+        },
+        {
+            "hazard": "Falling into excavation",
+            "control": "Barricade area and install warning signs and edge protection"
+        },
+        {
+            "hazard": "Water accumulation leading to instability",
+            "control": "Provide proper drainage or dewatering system"
+        }
+    ]
+}
