@@ -7,6 +7,10 @@
         {
             "name": "Raj",
             "email": "9883122847"
+        },
+        {
+            "name": "Sangita Singh",
+            "email": "sangitasingh587@gmail.com"
         }
     ],
     "HSE Reviewer": [
@@ -15,8 +19,8 @@
             "email": "raj.singh.hse@gmail.com"
         },
         {
-            "name": "Akash",
-            "email": "Akash.shukla@ten.com"
+            "name": "Sangita Singh",
+            "email": "sangitasingh587@gmail.com"
         }
     ],
     "Approver": [
@@ -30,7 +34,11 @@
         },
         {
             "name": "raj singh2",
-            "email": "raj.singh2@ten.com"
+            "email": "raj.singh.hse@gmail.com"
+        },
+        {
+            "name": "ayush",
+            "email": "ayushkrs2009@gmail.com"
         }
     ]
 }

@@ -7,6 +7,14 @@
         {
             "name": "Jane Smith",
             "email": "jane.smith@abc.com"
+        },
+        {
+            "name": "Ayush Krs",
+            "email": "ayushkrs2009@gmail.com"
+        },
+        {
+            "name": "Ayush Krs",
+            "email": "ayushkrs2009@gmail.com"
         }
     ],
     "XYZ Engineering": [
@@ -17,14 +25,20 @@
     ],
     "KKSEPL": [
         {
-            "name": "AKASH SHUKLA",
-            "email": "akash.shukla@ten.com"
+            "name": "sangita singh",
+            "email": "sangitasingh587@gmail.com"
         }
     ],
     "Shell ": [
         {
             "name": "raj",
             "email": "raj.singh.hse@gmail.com"
+        }
+    ],
+    "Axxon Mobile": [
+        {
+            "name": "Ayush Krs",
+            "email": "ayushkrs2009@gmail.com"
         }
     ]
 }
