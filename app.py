@@ -13,6 +13,11 @@ from werkzeug.utils import secure_filename
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Digital Permit System", layout="wide")
+query_params = st.query_params
+
+open_permit_id = query_params.get("permit_id")
+open_role = query_params.get("role")
+
 
 # --- CONFIGURATIONS & DIRECTORIES ---
 PERMIT_DB = 'database/permits.csv'
@@ -414,8 +419,16 @@ def signature_selection_ui(role_name, person_name, permit_id):
 # ==========================================
 #             APP NAVIGATION
 # ==========================================
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to:", ["Request Permit", "Approver Dashboard", "Manage Personnel", "Live Dashboard"])
+
+# AUTO REDIRECT IF LINK IS USED
+if open_permit_id and open_role:
+    page = "Approver Dashboard"
+else:
+    st.sidebar.title("Navigation")
+    page = st.sidebar.radio(
+        "Go to:",
+        ["Request Permit", "Approver Dashboard", "Manage Personnel", "Live Dashboard"]
+    )
 
 # ==========================================
 #             PAGE 1: REQUEST FORM
@@ -626,7 +639,25 @@ if page == "Request Permit":
                 issuer_email = extract_email(issuer)
                 if issuer_email:
                     subject = f"Action Required: New Work Permit #{permit_id}"
-                    body = f"Hello,\n\nA new permit #{permit_id} has been requested by {req_name} ({selected_contractor}) for {location}.\nPlease log in to the system to review and approve as the Issuer."
+                    
+                    base_url = "https://your-app-name.streamlit.app"   # 🔥 replace later
+
+                    approval_link = f"{base_url}/?permit_id={permit_id}&role=issuer"
+
+                    body = f"""
+                Hello,
+
+                A new Work Permit #{permit_id} has been requested.
+
+                👉 Click below to review and approve:
+                {approval_link}
+
+                This link will directly open your approval page.
+
+                Regards,  
+                Digital PTW System
+                """
+
                     send_workflow_email(issuer_email, subject, body)
 
                 st.session_state.permit_submitted = True
@@ -669,21 +700,32 @@ elif page == "Approver Dashboard":
         st.info("All caught up! No active or recent permits from the last 14 days.")
     else:
         for index, row in display_df.iterrows():
-            with st.expander(f"Permit #{row['permit_id']} | {row['type']} | Status: {row['status']}"):
+
+            # ✅ Step 6 logic
+            auto_open = False
+            if open_permit_id and str(row['permit_id']) == str(open_permit_id):
+                auto_open = True
+
+            # ✅ Expander (always runs, not inside IF!)
+            with st.expander(
+                f"Permit #{row['permit_id']} | {row['type']} | Status: {row['status']}",
+                expanded=auto_open
+            ):
+
                 st.write(f"**Contractor:** {row.get('contractor', 'N/A')}")
                 st.write(f"**Requestor:** {row['requestor_name']} ({row['requestor_email']})")
                 st.write(f"**Location:** {row['location']}")
                 st.write(f"**Work Description:** {row.get('work_description', 'N/A')}")
                 st.write(f"**Schedule:** {row.get('start_date', '')} {row.get('start_time', '')}  TO  {row.get('end_date', '')} {row.get('end_time', '')}")
                 st.caption(f"**Assigned To:** Issuer: {row.get('issuer', 'N/A')} | HSE: {row.get('hse_reviewer', 'N/A')} | Approver: {row.get('approver', 'N/A')}")
-                
+
                 # --- CANCELLED VIEW ---
                 if row['status'] == "CANCELLED":
                     st.error("🚫 **PERMIT CANCELLED / REVOKED**")
                     st.write("This permit has been officially cancelled. All associated work must be stopped immediately.")
                 
                 # --- PENDING ISSUER ---
-                elif row['status'] == "PENDING_ISSUER":
+                elif row['status'] == "PENDING_ISSUER" and (not open_role or open_role == "issuer"):
                     st.markdown("### Issuer Approval")
                     comment = st.text_area("Issuer Comments", key=f"iss_{row['permit_id']}")
                     sign_path = signature_selection_ui("Issuer", row.get('issuer', 'Unknown'), row['permit_id'])
@@ -697,9 +739,31 @@ elif page == "Approver Dashboard":
                             df.at[index, 'issuer_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             df.at[index, 'status'] = "PENDING_HSE"
                             df.to_csv(PERMIT_DB, index=False)
+                            
                             hse_email = extract_email(row['hse_reviewer'])
                             if hse_email:
-                                send_workflow_email(hse_email, f"Action Required: HSE Review for Permit #{row['permit_id']}", f"Hello,\n\nPermit #{row['permit_id']} has been approved by the Issuer and is now pending your HSE review.")
+                                base_url = "https://rksingh9883122-online-permit.streamlit.app"  # 🔥 replace later
+
+                                hse_link = f"{base_url}/?permit_id={row['permit_id']}&role=hse"
+
+                                send_workflow_email(
+                                    hse_email,
+                                    f"Action Required: HSE Review for Permit #{row['permit_id']}",
+                                    f"""
+                            Hello,
+
+                            Permit #{row['permit_id']} has been approved by the Issuer.
+
+                            👉 Click below to perform HSE review:
+                            {hse_link}
+
+                            This link will take you directly to your review page.
+
+                            Regards,  
+                            Digital PTW System
+                            """
+                                )
+
                             st.rerun()
                     with c2:
                         if st.button("Cancel Permit", key=f"cancel_iss_{row['permit_id']}"):
@@ -709,7 +773,7 @@ elif page == "Approver Dashboard":
                             st.rerun()
 
                 # --- PENDING HSE ---
-                elif row['status'] == "PENDING_HSE":
+                elif row['status'] == "PENDING_HSE" and (not open_role or open_role == "hse"):
                     st.markdown("### HSE Review")
                     st.info(f"Issuer: {row['issuer']} | Signed at: {row.get('issuer_time', 'N/A')}\n\nIssuer Comments: {row['issuer_comments']}")
                     comment = st.text_area("HSE Comments", key=f"hse_{row['permit_id']}")
@@ -724,9 +788,31 @@ elif page == "Approver Dashboard":
                             df.at[index, 'hse_time'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             df.at[index, 'status'] = "PENDING_APPROVER"
                             df.to_csv(PERMIT_DB, index=False)
+
                             approver_email = extract_email(row['approver'])
                             if approver_email:
-                                send_workflow_email(approver_email, f"Action Required: Final Approval for Permit #{row['permit_id']}", f"Hello,\n\nPermit #{row['permit_id']} has passed HSE review and is awaiting your final approval.")
+                                base_url = "https://your-app-name.streamlit.app"   # 🔥 replace after deploy
+
+                                approver_link = f"{base_url}/?permit_id={row['permit_id']}&role=approver"
+
+                                send_workflow_email(
+                                    approver_email,
+                                    f"Action Required: Final Approval for Permit #{row['permit_id']}",
+                                    f"""
+                            Hello,
+
+                            Permit #{row['permit_id']} has completed HSE review.
+
+                            👉 Click below for final approval:
+                            {approver_link}
+
+                            This link will take you directly to the approval page.
+
+                            Regards,  
+                            Digital PTW System
+                            """
+                                )
+
                             st.rerun()
                     with c2:
                         if st.button("Cancel Permit", key=f"cancel_hse_{row['permit_id']}"):
@@ -736,7 +822,7 @@ elif page == "Approver Dashboard":
                             st.rerun()
 
                 # --- PENDING APPROVER ---
-                elif row['status'] == "PENDING_APPROVER":
+                elif row['status'] == "PENDING_APPROVER" and (not open_role or open_role == "approver"):
                     st.markdown("### Final Approval")
                     st.info(f"Issuer: {row['issuer']} | Signed at: {row.get('issuer_time', 'N/A')}\n\nIssuer Comments: {row['issuer_comments']}")
                     st.info(f"HSE Reviewer: {row['hse_reviewer']} | Signed at: {row.get('hse_time', 'N/A')}\n\nHSE Comments: {row['hse_comments']}")
