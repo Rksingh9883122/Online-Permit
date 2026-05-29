@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px  
@@ -10,8 +11,8 @@ from datetime import datetime
 from email.message import EmailMessage
 from fpdf import FPDF
 from werkzeug.utils import secure_filename
-import sqlite3
-import secrets
+
+# ✅ REMOVE: import secrets
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Digital Permit System", layout="wide")
@@ -20,20 +21,24 @@ query_params = st.query_params
 open_permit_id = query_params.get("permit_id")
 open_role = query_params.get("role")
 
-# --- CONFIGURATIONS & DIRECTORIES ---
+# ✅ FIXED DB PATH (use CSV)
 PERMIT_DB = 'database/permits.csv'
+
 HAZARDS_DB = 'database/hazards.json'
 CHECKPOINTS_DB = 'database/checkpoints.json' 
 PERSONNEL_DB = 'database/personnel.json'
 CONTRACTORS_DB = 'database/contractors.json'
 LOCATIONS_DB = 'database/locations.json'
+
 UPLOAD_FOLDER = 'static/uploads'
 PERMIT_FOLDER = 'static/permits'
 SIGNATURE_FOLDER = 'static/signatures'
 SIGNATURE_DIR = "static/saved_signatures"
 
+# ✅ CORRECT secrets usage
 EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+BASE_URL = st.secrets["BASE_URL"]
 
 
 print("File path:", PERMIT_DB)
@@ -677,7 +682,6 @@ if page == "Request Permit":
             st.session_state.permit_count = 1 
             st.rerun()
 
-
 # ==========================================
 #        PAGE 2: APPROVER DASHBOARD
 # ==========================================
@@ -1066,3 +1070,4 @@ elif page == "Live Dashboard":
                             st.write("---")
                 except Exception as e:
                     st.write("No valid checkpoint data available.")
+
