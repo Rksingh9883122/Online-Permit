@@ -10,6 +10,8 @@ from datetime import datetime
 from email.message import EmailMessage
 from fpdf import FPDF
 from werkzeug.utils import secure_filename
+import sqlite3
+import secrets
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Digital Permit System", layout="wide")
@@ -17,7 +19,6 @@ query_params = st.query_params
 
 open_permit_id = query_params.get("permit_id")
 open_role = query_params.get("role")
-
 
 # --- CONFIGURATIONS & DIRECTORIES ---
 PERMIT_DB = 'database/permits.csv'
@@ -30,6 +31,13 @@ UPLOAD_FOLDER = 'static/uploads'
 PERMIT_FOLDER = 'static/permits'
 SIGNATURE_FOLDER = 'static/signatures'
 SIGNATURE_DIR = "static/saved_signatures"
+
+EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
+EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
+
+
+print("File path:", PERMIT_DB)
+print("File path:", HAZARDS_DB)
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PERMIT_FOLDER, exist_ok=True)
@@ -791,7 +799,7 @@ elif page == "Approver Dashboard":
 
                             approver_email = extract_email(row['approver'])
                             if approver_email:
-                                base_url = "https://your-app-name.streamlit.app"   # 🔥 replace after deploy
+                                base_url = "https://rksingh9883122-online-permit.streamlit.app"   # 🔥 replace after deploy
 
                                 approver_link = f"{base_url}/?permit_id={row['permit_id']}&role=approver"
 
@@ -919,7 +927,6 @@ elif page == "Manage Personnel":
                     json.dump(st.session_state.contractors, f, indent=4)
                 st.success(f"Added {req_name} to {contractor}!")
                 st.rerun()
-
 
 # ==========================================
 #        PAGE 4: LIVE DASHBOARD
