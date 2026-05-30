@@ -675,7 +675,7 @@ if page == "Request Permit":
                 if issuer_email:
                     subject = f"Action Required: New Work Permit #{permit_id}"
                     
-                    base_url = "https://your-app-name.streamlit.app"   # 🔥 replace later
+                    base_url = "https://online-permit-system.streamlit.app/"   # 🔥 replace later
 
                     approval_link = f"{base_url}/?permit_id={permit_id}&role=issuer"
 
@@ -776,7 +776,7 @@ elif page == "Approver Dashboard":
                             
                             hse_email = extract_email(row['hse_reviewer'])
                             if hse_email:
-                                base_url = "https://rksingh9883122-online-permit.streamlit.app"  # 🔥 replace later
+                                base_url = "https://online-permit-system.streamlit.app/"  # 🔥 replace later
 
                                 hse_link = f"{base_url}/?permit_id={row['permit_id']}&role=hse"
 
@@ -825,7 +825,7 @@ elif page == "Approver Dashboard":
 
                             approver_email = extract_email(row['approver'])
                             if approver_email:
-                                base_url = "https://rksingh9883122-online-permit.streamlit.app"   # 🔥 replace after deploy
+                                base_url = "https://online-permit-system.streamlit.app/"   # 🔥 replace after deploy
 
                                 approver_link = f"{base_url}/?permit_id={row['permit_id']}&role=approver"
 
