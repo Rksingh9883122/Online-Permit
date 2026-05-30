@@ -1,5 +1,6 @@
 
 import streamlit as st
+
 import pandas as pd
 import plotly.express as px  
 import os
@@ -36,7 +37,16 @@ SIGNATURE_FOLDER = 'static/signatures'
 SIGNATURE_DIR = "static/saved_signatures"
 
 # ✅ CORRECT secrets usage
-EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
+# EMAIL_ADDRESS = st.secrets["EMAIL_ADDRESS"]
+
+
+# Safe access (prevents crash)
+EMAIL_ADDRESS = st.secrets.get("EMAIL_ADDRESS")
+
+if EMAIL_ADDRESS is None:
+    st.error("EMAIL_ADDRESS is missing in secrets")
+
+
 EMAIL_PASSWORD = st.secrets["EMAIL_PASSWORD"]
 BASE_URL = st.secrets["BASE_URL"]
 
@@ -348,19 +358,31 @@ def extract_email(person_string):
     if "(" in person_string and ")" in person_string:
         return person_string.split("(")[-1].split(")")[0].strip()
     return None
-
 def send_workflow_email(recipient_email, subject, body, pdf_path=None):
     if not recipient_email:
         return
-        
-    EMAIL_ADDRESS = "rksingh9883122@gmail.com"
-    EMAIL_PASSWORD = "cbkw xsus zyht ryso"
 
     msg = EmailMessage()
     msg['Subject'] = subject
     msg['From'] = EMAIL_ADDRESS
     msg['To'] = recipient_email
     msg.set_content(body)
+
+    if pdf_path and os.path.exists(pdf_path):
+        with open(pdf_path, 'rb') as f:
+            msg.add_attachment(
+                f.read(),
+                maintype='application',
+                subtype='pdf',
+                filename=os.path.basename(pdf_path)
+            )
+
+    try:
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+    except Exception as e:
+        st.error(f"Email failed: {e}")
 
     if pdf_path and os.path.exists(pdf_path):
         with open(pdf_path, 'rb') as f:
