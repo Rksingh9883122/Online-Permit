@@ -1,0 +1,87 @@
+{
+    "Confined Space": [
+        {
+            "checkpoint_text": "Confined Space Entry Permit approved by authorized person"
+        },
+        {
+            "checkpoint_text": "Atmosphere tested: Oxygen 19.5%-23.5%, LEL <10%, Toxics within limits"
+        },
+        {
+            "checkpoint_text": "Gas detector calibrated & continuous monitoring arranged"
+        },
+        {
+            "checkpoint_text": "Complete isolation done (mechanical/electrical/pipeline) & LOTO applied"
+        },
+        {
+            "checkpoint_text": "Ventilation provided and space purged/cleaned as required"
+        },
+        {
+            "checkpoint_text": "Entrants, attendant, and supervisor are trained & authorized"
+        },
+        {
+            "checkpoint_text": "Attendant (standby man) deployed at entry point with no other duties"
+        }
+    ],
+
+    "Electrical Work": [
+        {
+            "checkpoint_text": "Isolation from all sources of energy has been verified"
+        },
+        {
+            "checkpoint_text": "Temporary grounding has been applied"
+        },
+        {
+            "checkpoint_text": "Authorized persons are aware of isolation details"
+        }
+    ],
+    
+    "Critical Lifting": [
+        {"checkpoint_text": "Approved critical lift plan is available and reviewed"},
+        {"checkpoint_text": "All lifting equipment (crane, slings, shackles) are certified and valid"},
+        {"checkpoint_text": "Load weight is verified and within crane capacity"},
+        {"checkpoint_text": "Crane is positioned on stable and leveled ground with outriggers fully extended"},
+        {"checkpoint_text": "Weather conditions (wind speed, visibility) are within safe limits"},
+        {"checkpoint_text": "Competent and certified crane operator is assigned"},
+        {"checkpoint_text": "Qualified signalman/rigger is assigned and communication method agreed"},
+        {"checkpoint_text": "Exclusion zone is established and barricaded"},
+        {"checkpoint_text": "Trial lift conducted to verify load balance and rigging"},
+        {"checkpoint_text": "Lifting path is clear of obstructions and overhead hazards"},
+        {"checkpoint_text": "Emergency plan and rescue procedures are in place"}
+    ],
+
+    "Excavation Work": [
+        {"checkpoint_text": "Excavation permit approved by authorized personnel"},
+        {"checkpoint_text": "Underground utilities (cables, pipelines) are identified and marked"},
+        {"checkpoint_text": "Excavation area is barricaded and warning signs are installed"},
+        {"checkpoint_text": "Proper shoring, sloping, or trench box provided to prevent collapse"},
+        {"checkpoint_text": "Safe access and egress (ladder/ramp) provided for workers"},
+        {"checkpoint_text": "Excavated material stored at safe distance from edge"},
+        {"checkpoint_text": "Heavy equipment kept at safe distance from excavation edge"}
+    ],
+
+    "Scaffolding Work": [
+        {"checkpoint_text": "Scaffold erected, modified, and dismantled by certified scaffolders"},
+        {"checkpoint_text": "Scaffold design and load capacity approved"},
+        {"checkpoint_text": "Foundation/base plates are stable and properly supported"},
+        {"checkpoint_text": "Guardrails, mid-rails, and toe boards are installed"},
+        {"checkpoint_text": "Safe access provided (ladders/stair towers)"},
+        {"checkpoint_text": "Scaffold is fully planked and platforms are secured"},
+        {"checkpoint_text": "Scaffold inspection tag (green/yellow/red) is displayed"},
+        {"checkpoint_text": "Scaffold inspected before use and after any modification"},
+        {"checkpoint_text": "Workers using scaffold are trained and using fall protection"},
+        {"checkpoint_text": "No overloading of scaffold beyond rated capacity"},
+        {"checkpoint_text": "Scaffold is protected from weather conditions (wind, rain) if required"}
+    ],
+
+    "Hot Work": [
+        {
+            "checkpoint_text": "Validated that work area is clean of all combustibles"
+        },
+        {
+            "checkpoint_text": "Dedicated Fire Watch with extinguisher is present"
+        },
+        {
+            "checkpoint_text": "Work area has been gas-tested and barricaded"
+        }
+    ]
+}

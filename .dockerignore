@@ -1,0 +1,15 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+node_modules/
+.env
+*.log
+static/uploads/
+static/permits/
+static/signatures/
+static/saved_signatures/
+database/*.csv

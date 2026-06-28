@@ -1,0 +1,52 @@
+{
+    "ABC Construction": [
+        {
+            "name": "John Doe",
+            "email": "john.doe@abc.com"
+        },
+        {
+            "name": "Jane Smith",
+            "email": "jane.smith@abc.com"
+        },
+        {
+            "name": "Ayush Krs",
+            "email": "ayushkrs2009@gmail.com"
+        },
+        {
+            "name": "Ayush Krs",
+            "email": "ayushkrs2009@gmail.com"
+        },
+        {
+            "name": "Namita",
+            "email": "mrs.namita.786@gmail.com"
+        }
+    ],
+    "XYZ Engineering": [
+        {
+            "name": "Mike Johnson",
+            "email": "mike.j@xyz.com"
+        }
+    ],
+    "KKSEPL": [
+        {
+            "name": "sangita singh",
+            "email": "sangitasingh587@gmail.com"
+        }
+    ],
+    "Shell ": [
+        {
+            "name": "raj",
+            "email": "raj.singh.hse@gmail.com"
+        },
+        {
+            "name": "Raj 2",
+            "email": "rksingh988312@gmail.com"
+        }
+    ],
+    "Axxon Mobile": [
+        {
+            "name": "Ayush Krs",
+            "email": "ayushkrs2009@gmail.com"
+        }
+    ]
+}

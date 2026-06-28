@@ -1,0 +1,22 @@
+{
+    "ABC Construction": [
+        {
+            "name": "John Doe",
+            "email": "john.doe@abc.com"
+        },
+        {
+            "name": "Jane Smith",
+            "email": "jane.smith@abc.com"
+        },
+        {
+            "name": "raj",
+            "email": "raj.singh.hse@gmail.com"
+        }
+    ],
+    "XYZ Engineering": [
+        {
+            "name": "Mike Johnson",
+            "email": "mike.j@xyz.com"
+        }
+    ]
+}

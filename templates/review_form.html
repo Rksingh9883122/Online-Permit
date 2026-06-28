@@ -1,0 +1,24 @@
+<h2>Reviewing Permit: {{ p.permit_id }}</h2>
+<p><strong>Requestor:</strong> {{ p.requestor_name }}</p>
+<p><strong>Location:</strong> {{ p.location }}</p>
+
+<h3>Existing Hazards</h3>
+<ul>
+    {% for h in p.hazards %}
+    <li>{{ h.hazard }} - <em>Control: {{ h.control }}</em> ({{ h.resp_name }})</li>
+    {% endfor %}
+</ul>
+
+<form action="/process_review/{{ p.permit_id }}" method="post">
+    <h3>Reviewer Action</h3>
+    <label>Add Additional Hazard (Optional):</label><br>
+    <input type="text" name="extra_hazard" placeholder="Hazard Description">
+    <input type="text" name="extra_control" placeholder="Control Measure">
+    
+    <br><br>
+    <label>Reviewer Comments/Conditions:</label><br>
+    <textarea name="reviewer_comment" required></textarea>
+    
+    <br><br>
+    <button type="submit" style="background: green; color: white;">Verify and Forward to Next Level</button>
+</form>

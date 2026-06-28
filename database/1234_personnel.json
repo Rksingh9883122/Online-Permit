@@ -1,0 +1,32 @@
+{
+    "Issuer": [
+        {
+            "name": "Alice Smith",
+            "email": "alice.smith@example.com"
+        },
+        {
+            "name": "Raj",
+            "email": "raj.singh.hse@gmail.com"
+        }
+    ],
+    "HSE Reviewer": [
+        {
+            "name": "Bob Jones",
+            "email": "bob.jones@example.com"
+        },
+        {
+            "name": "raj",
+            "email": "raj.singh.hse@gmail.com"
+        }
+    ],
+    "Approver": [
+        {
+            "name": "Charlie Brown",
+            "email": "charlie.b@example.com"
+        },
+        {
+            "name": "raj",
+            "email": "raj.singh.hse@gmail.com"
+        }
+    ]
+}

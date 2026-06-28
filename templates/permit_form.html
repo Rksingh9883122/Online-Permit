@@ -1,0 +1,122 @@
+<form action="/submit_permit" method="post" enctype="multipart/form-data" id="main_form">
+    <h2>Multi-Permit Work Request</h2>
+    
+    <div style="margin-bottom: 20px; padding: 10px; background: #f9f9f9;">
+        <label>Requestor Name:</label>
+        <input type="text" name="requestor_name" required>
+        
+        <label>Requestor Email:</label>
+        <input type="email" name="requestor_email" required>
+
+        <label>Location:</label>
+        <select name="location">
+            <option value="Plant A">Plant A</option>
+            <option value="Zone 5">Zone 5</option>
+        </select>
+        
+        <label>Start Time:</label>
+        <input type="datetime-local" name="start_time" required>
+    </div>
+
+    <div id="permits_wrapper">
+        <div class="permit-section" id="section_0" style="border: 1px solid #000; padding: 15px; margin-bottom: 10px;">
+            <label><strong>Permit Type:</strong></label>
+            <select name="permit_type_0" class="permit_select" onchange="updateHazards(0)" required>
+                <option value="" disabled selected>Select Type</option>
+                <option value="hot_work">Hot Work</option>
+                <option value="confined_space">Confined Space</option>
+                <option value="height">Working at Height</option>
+            </select>
+            <div id="hazards_container_0" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <button type="button" onclick="addPermitSection()" style="background: #e1e1e1;">+ Add Another Permit Type</button>
+    <input type="hidden" name="permit_count" id="permit_count" value="1">
+    
+    <div class="checkpoint" style="border-top: 2px solid #333; margin-top: 20px; padding-top: 10px;">
+        <label><strong>Gas Testing Image / Site Evidence:</strong></label>
+        <input type="file" name="gas_test_img" accept="image/*">
+    </div>
+
+    <hr>
+    <button type="submit" style="background: green; color: white; padding: 10px 20px;">Submit Combined Request</button>
+</form>
+
+<script>
+let sectionCount = 1;
+
+function addPermitSection() {
+    const wrapper = document.getElementById('permits_wrapper');
+    const newSection = document.createElement('div');
+    newSection.className = 'permit-section';
+    newSection.id = `section_${sectionCount}`;
+    newSection.style = "border: 1px solid #000; padding: 15px; margin-top: 10px;";
+    
+    newSection.innerHTML = `
+        <label><strong>Permit Type:</strong></label>
+        <select name="permit_type_${sectionCount}" class="permit_select" onchange="updateHazards(${sectionCount})" required>
+            <option value="" disabled selected>Select Type</option>
+            <option value="hot_work">Hot Work</option>
+            <option value="confined_space">Confined Space</option>
+            <option value="height">Working at Height</option>
+        </select>
+        <button type="button" onclick="this.parentElement.remove()" style="float:right; color:red;">Remove</button>
+        <div id="hazards_container_${sectionCount}" style="margin-top: 10px;"></div>
+    `;
+    
+    wrapper.appendChild(newSection);
+    sectionCount++;
+    document.getElementById('permit_count').value = sectionCount;
+}
+
+async function updateHazards(index) {
+    const selectElement = document.getElementsByName(`permit_type_${index}`)[0];
+    const type = selectElement.value;
+    const container = document.getElementById(`hazards_container_${index}`);
+    
+    if (!type) return;
+
+    try {
+        const response = await fetch(`/get_hazards/${type}`);
+        const data = await response.json();
+        
+        let html = `
+            <table border="1" style="width:100%; border-collapse: collapse; margin-top:10px;">
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th>Hazard</th>
+                        <th>Control Measure</th>
+                        <th>Responsible Person (Name & Cell)</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+                
+        data.hazards.forEach((item, hIdx) => {
+            html += `
+                <tr>
+                    <td>
+                        ${item.hazard}
+                        <input type="hidden" name="hazard_${index}_${hIdx}" value="${item.hazard}">
+                    </td>
+                    <td>
+                        ${item.control}
+                        <input type="hidden" name="control_${index}_${hIdx}" value="${item.control}">
+                    </td>
+                    <td>
+                        <input type="text" name="resp_name_${index}_${hIdx}" placeholder="Name" required style="width:90%">
+                        <input type="tel" name="resp_cell_${index}_${hIdx}" placeholder="Cell" required style="width:90%; margin-top:5px;">
+                    </td>
+                </tr>`;
+        });
+        
+        html += `</tbody></table>
+                 <input type="hidden" name="hazard_count_${index}" value="${data.hazards.length}">`;
+        
+        container.innerHTML = html;
+    } catch (error) {
+        console.error("Error fetching hazards:", error);
+        container.innerHTML = "<p style='color:red;'>Error loading hazard data.</p>";
+    }
+}
+</script>
